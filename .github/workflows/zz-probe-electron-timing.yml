@@ -1,0 +1,49 @@
+name: probe electron timing
+on:
+  push:
+    branches: ['ci-probe/median-timing']
+permissions:
+  contents: read
+jobs:
+  probe:
+    name: probe ${{ matrix.runner }} shard ${{ matrix.shard }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel, ubuntu-latest]
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            app/package-lock.json
+      - run: npm ci
+      - run: npm --prefix app ci
+      - run: npm run build:core
+      - working-directory: app
+        run: npx --no-install electron-builder install-app-deps
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb
+      - working-directory: app
+        run: npx --no-install electron-vite build
+      - name: Run the virtualization suite repeatedly
+        working-directory: app
+        run: |
+          XVFB=""; if [ "$RUNNER_OS" = Linux ]; then XVFB="xvfb-run -a"; fi
+          mkdir -p ../probe-logs
+          for i in $(seq 1 12); do
+            $XVFB npx --no-install electron --no-sandbox tests/electron-session-virtualization.mjs > "../probe-logs/run-$i.log" 2>&1 && s=ok || s=fail
+            echo "run $i $s"
+            grep -E "stationary live commits stay|Bash patch preparation|Bash tool update avoids a 50ms|native wheel scrolling|^FAIL" "../probe-logs/run-$i.log" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-${{ matrix.runner }}-${{ matrix.shard }}
+          path: probe-logs
