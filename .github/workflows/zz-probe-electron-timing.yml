@@ -40,7 +40,7 @@ jobs:
           for i in $(seq 1 12); do
             $XVFB npx --no-install electron --no-sandbox tests/electron-session-virtualization.mjs > "../probe-logs/run-$i.log" 2>&1 && s=ok || s=fail
             echo "run $i $s"
-            grep -E "stationary live commits stay|Bash patch preparation|Bash tool update avoids a 50ms|native wheel scrolling|^FAIL" "../probe-logs/run-$i.log" || true
+            grep -E "stationary live commits|Bash patch preparation|Bash tool update avoids a 50ms|native wheel scrolling|^FAIL" "../probe-logs/run-$i.log" || true
           done
       - uses: actions/upload-artifact@v4
         if: always()
